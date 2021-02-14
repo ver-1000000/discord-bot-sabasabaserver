@@ -15,8 +15,9 @@
   "author": "akai <@Ver1000000000>",
   "license": "MIT",
   "dependencies": {
+    "data-store": "git@github.com:jonschlinkert/data-store.git",
     "discord.js": "^12.5.1",
-    "dotenv": "^8.2.0"
+    "dotenv": "*"
   },
   "devDependencies": {
     "@types/node": "^14.14.22",

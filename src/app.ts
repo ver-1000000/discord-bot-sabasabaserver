@@ -56,7 +56,7 @@ class App {
     if (oldState.channelID == null && newState.channelID && newState.member && newState.channel && newState.channel.members.size === 1) {
       const notifyChannel = client.channels.cache.get(process.env.DISCORD_NOTIFY_CHANNEL_ID || '') as TextChannel | undefined;
       const text          = `:loudspeaker: **${newState.member}** が **${newState.channel.name}** でボイスチャンネルを開始しました`;
-      notifyChannel?.client.user?.send(text);
+      notifyChannel?.send(text);
     }
   }
 }
