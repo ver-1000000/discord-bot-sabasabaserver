@@ -10,6 +10,9 @@ _**\`!memo.list         \`**_ - メモされた値をすべて表示します
 _**\`!memo.help         \`**_ - \`!memo\` コマンドのヘルプを表示します(エイリアス: \`!memo\`)
 `;
 
+/** Discordのコード記法(バッククォート3つで囲み、ファイルタイプを指定する記述)を作成しやすくするヘルパー関数。 */
+export const code = (type = 'txt', value: string) => `\`\`\`${type}\n${value}\`\`\``;
+
 /** Messageを解析してコマンドを判定し、コマンドごとに処理を行うクラス。 */
 export class CommandByMessage {
   private memosStore = new MemosStore();
@@ -33,25 +36,27 @@ export class CommandByMessage {
   /** `!memo.get` コマンドを受け取った時、第一引数にマッチする値を取得する。 */
   private commandGet(message: Message, { body: key }: { body: string }) {
     const value = this.memosStore.get(key);
-    message.channel.send(`${message.author} ` + (value == null ? `**${key}** は設定されていません:cry:` : `**${key}**\n\`\`\`md\n${value}\`\`\``));
+    const text  = value == null ? `**${key}** は設定されていません:cry:` : `**${key}**\n${value ? code('md', value) : '値は空です:ghost:'}`
+    message.channel.send(`${message.author} ` + text);
   }
 
   /** `!memo.set` コマンドを受け取った時、第一引数をキーに、第二引数を値にしたものを登録する。 */
   private commandSet(message: Message, { body }: { body: string }) {
     const key   = body.replace(/\s.*/g, '');
     const value = body.replace(key, '').trim();
+    const text  = value ? `に次の内容をメモしました:wink:\n${code('md', value)}` : 'とメモしました:cat:';
     this.memosStore.set(key, value);
-    message.channel.send(`${message.author} **${key}** に次の内容をメモしました:wink:\n\`\`\`md\n${value}\`\`\``);
+    message.channel.send(`${message.author} **${key}** ${text}`);
   }
 
   /** `!memo.remove` コマンドを受け取った時、第一引数にマッチする値を削除する。 */
   private commandRemove(message: Message, { body }: { body: string }) {
     const value = this.memosStore.get(body);
-    if (value) {
-      this.memosStore.del(body);
-      message.channel.send(`${message.author} **${body}** を削除しました:wave:\n\`\`\`md\n${value}\`\`\``);
-    } else {
+    if (value == null) {
       message.channel.send(`${message.author} **${body}** は設定されていません:cry:`);
+    } else {
+      this.memosStore.del(body);
+      message.channel.send(`${message.author} **${body}** を削除しました:wave:${value ? '\n' + code('md', value) : ''}`);
     }
   }
 

@@ -1,5 +1,7 @@
 import Store from 'data-store';
 
+import { code } from './command-by-message';
+
 /** memoの情報をjsonに永続化して保存するためのストア用クラス。 */
 export class MemosStore {
   private store = new Store({ path: `${process.cwd()}/.data/memos.json` });
@@ -24,6 +26,6 @@ export class MemosStore {
   /** 指定されたキーの値を整形したテキストにして返却する。 */
   showall() {
     const memos = Object.entries<string>(this.store.data);
-    return memos.map(([k, v]) => `**${k}**\n\`\`\`md\n${v}\`\`\``).join('\n') || `メモがひとつも設定されていません:cry:`;
+    return memos.map(([key, value]) => `# **${key}**${value ? '\n' + code('md', value) : '\n'}`).join('\n') || `メモがひとつも設定されていません:cry:`;
   }
 }
