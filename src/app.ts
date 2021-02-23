@@ -1,15 +1,13 @@
-import { config } from 'dotenv';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { Client, ClientUser, TextChannel, VoiceState } from 'discord.js';
+import { Client, ClientUser } from 'discord.js';
 
-import { CommandsFacade } from './commands.facade';
-
-config();
+import { DISCORD_LOGIN_TOKEN, DISCORD_PRESENCE_NAME } from 'src/environment';
+import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
+import { CommandsFacade } from 'src/commands.facade';
 
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
-  constructor(private commands: CommandsFacade) {
-  }
+  constructor(private commands: CommandsFacade, private notify: NotifyVoiceChannelService) {}
 
   /** アプリケーションクラスを起動する。 */
   run() {
@@ -17,14 +15,14 @@ class App {
     this.confirmToken();
     this.launchWarmGlitch();
     client.on('ready', () => this.initializeBotStatus(client.user));
-    client.on('voiceStateUpdate', (oldState, newState) => this.sendStartVoiceChannel(oldState, newState, client));
     client.on('message', message => this.commands.run(message));
-    client.login(process.env.DISCORD_LOGIN_TOKEN);
+    client.on('voiceStateUpdate', (oldState, newState) => this.notify.run(oldState, newState, client));
+    client.login(DISCORD_LOGIN_TOKEN);
   }
 
   /** DISCORD_LOGIN_TOKENが設定されていなければ異常終了させる。 */
   private confirmToken() {
-    if (process.env.DISCORD_LOGIN_TOKEN) { return; }
+    if (DISCORD_LOGIN_TOKEN) { return; }
     console.log('DISCORD_LOGIN_TOKENが設定されていません。');
     process.exit(1);
   }
@@ -48,16 +46,9 @@ class App {
   /** readyイベントにフックして、ボットのステータスなどを設定する。 */
   private initializeBotStatus(user: ClientUser | null) {
     console.log('ready...');
-    user?.setPresence({ activity: { name: process.env.DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
-  }
-
-  /** 音声チャンネルに最初の一人が入室したときに通知する。 */
-  private sendStartVoiceChannel(oldState: VoiceState, newState: VoiceState, client: Client) {
-    if (oldState.channelID == null && newState.channelID && newState.member && newState.channel && newState.channel.members.size === 1) {
-      const notifyChannel = client.channels.cache.get(process.env.DISCORD_NOTIFY_CHANNEL_ID || '') as TextChannel | undefined;
-      const text          = `:loudspeaker: **${newState.member}** が **${newState.channel.name}** でボイスチャンネルを開始しました`;
-      notifyChannel?.send(text);
-    }
+    user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
   }
 }
-new App(new CommandsFacade()).run();
+const commands = new CommandsFacade();
+const notify   = new NotifyVoiceChannelService();
+new App(commands, notify).run();

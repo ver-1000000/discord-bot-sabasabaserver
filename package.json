@@ -2,11 +2,11 @@
   "name": "discord-bot-sabasabaserver",
   "version": "1.0.0",
   "description": "Discord bot for sabasabaserver by AKAI",
-  "main": "dist/app.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "start": "npm run build && npm run serve",
     "build": "npx tsc",
-    "serve": "node dist"
+    "serve": "NODE_PATH=dist node dist/src"
   },
   "repository": {
     "type": "git",

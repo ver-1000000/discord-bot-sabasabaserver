@@ -1,6 +1,5 @@
 import Store from 'data-store';
 
-
 /** Discordのコード記法(バッククォート3つで囲み、ファイルタイプを指定する記述)を作成しやすくするヘルパー関数。 */
 const code = (type = 'txt', value: string) => `\`\`\`${type}\n${value}\`\`\``;
 
