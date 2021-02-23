@@ -10,8 +10,11 @@ _**\`!memo.list         \`**_ - メモされた値をすべて表示します
 _**\`!memo.help         \`**_ - \`!memo\` コマンドのヘルプを表示します(エイリアス: \`!memo\`)
 `;
 
-/** Messageを解析してコマンドを判定し、コマンドごとに処理を行うクラス。 */
-export class CommandByMessage {
+/**
+ * Messageを解析してコマンドを判定し、コマンドごとに処理を行うクラス。
+ * Facadeの役割を持ち、ロジックの具体的な実装は他のクラスで行う。
+ */
+export class CommandsFacade {
   private memosStore = new MemosStore();
 
   constructor() {}

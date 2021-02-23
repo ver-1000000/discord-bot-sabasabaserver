@@ -2,13 +2,13 @@ import { config } from 'dotenv';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { Client, ClientUser, TextChannel, VoiceState } from 'discord.js';
 
-import { CommandByMessage } from './command-by-message';
+import { CommandsFacade } from './commands.facade';
 
 config();
 
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
-  constructor(private commandByMessage: CommandByMessage) {
+  constructor(private commands: CommandsFacade) {
   }
 
   /** アプリケーションクラスを起動する。 */
@@ -18,7 +18,7 @@ class App {
     this.launchWarmGlitch();
     client.on('ready', () => this.initializeBotStatus(client.user));
     client.on('voiceStateUpdate', (oldState, newState) => this.sendStartVoiceChannel(oldState, newState, client));
-    client.on('message', message => this.commandByMessage.run(message));
+    client.on('message', message => this.commands.run(message));
     client.login(process.env.DISCORD_LOGIN_TOKEN);
   }
 
@@ -60,4 +60,4 @@ class App {
     }
   }
 }
-new App(new CommandByMessage()).run();
+new App(new CommandsFacade()).run();
