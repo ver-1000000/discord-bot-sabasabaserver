@@ -75,8 +75,8 @@ export class PomodoroService {
   constructor(private client: Client) {}
 
   /** Clientからの音声チャンネルイベント監視を開始する。 */
-  async run() {
-    await this.setMute(false);
+  run() {
+    this.client.on('ready', async () => await this.setMute(false));
     this.client.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState));
   }
 

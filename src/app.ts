@@ -1,7 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { Client, ClientUser } from 'discord.js';
+import { Client, ClientUser, TextChannel } from 'discord.js';
 
-import { DISCORD_LOGIN_TOKEN, DISCORD_PRESENCE_NAME } from 'src/environment';
+import { DISCORD_LOGIN_TOKEN, DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_PRESENCE_NAME } from 'src/environment';
 import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
 import { CommandsFacade } from 'src/commands.facade';
 import { PomodoroService } from './services/pomodoro.service';
@@ -15,6 +15,7 @@ class App {
     this.confirmToken();
     this.launchWarmGlitch();
     this.client.on('ready', () => this.initializeBotStatus(this.client.user));
+    this.client.on('error', e => this.error(e));
     this.client.login(DISCORD_LOGIN_TOKEN);
   }
 
@@ -45,6 +46,20 @@ class App {
   private initializeBotStatus(user: ClientUser | null) {
     console.log('ready...');
     user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
+    this.send(`${DISCORD_PRESENCE_NAME} is ranning!`);
+  }
+
+  /** Discord.jsからエラーイベントを受け取った時、Discordに通知する。 */
+  private error(e: Error) {
+    this.send(`:skull_crossbones: エラー出タ、死んダかも……。 \`(${e.name})\``);
+  }
+
+  /** 通知チャンネルにメッセージを送信する。 */
+  private send(msg: string) {
+    this.client.on('ready', () => {
+      const notifyChannel = this.client.channels.cache.get(DISCORD_NOTIFY_TEXT_CHANNEL_ID || '') as TextChannel | undefined;
+      notifyChannel?.send(msg);
+    });
   }
 }
 
