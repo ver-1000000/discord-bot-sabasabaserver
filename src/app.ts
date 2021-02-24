@@ -46,7 +46,7 @@ class App {
   private initializeBotStatus(user: ClientUser | null) {
     console.log('ready...');
     user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
-    this.send(`${DISCORD_PRESENCE_NAME} is ranning!`);
+    this.send(`${DISCORD_PRESENCE_NAME} is ranning :runner:`);
   }
 
   /** Discord.jsからエラーイベントを受け取った時、Discordに通知する。 */
@@ -56,10 +56,8 @@ class App {
 
   /** 通知チャンネルにメッセージを送信する。 */
   private send(msg: string) {
-    this.client.on('ready', () => {
-      const notifyChannel = this.client.channels.cache.get(DISCORD_NOTIFY_TEXT_CHANNEL_ID || '') as TextChannel | undefined;
-      notifyChannel?.send(msg);
-    });
+    const notifyChannel = this.client.channels.cache.get(DISCORD_NOTIFY_TEXT_CHANNEL_ID || '') as TextChannel | undefined;
+    notifyChannel?.send(msg);
   }
 }
 

@@ -102,7 +102,7 @@ export class PomodoroService {
   prettyStatus({ channel }: Message) {
     const status = this.getStatus();
     const text   = `
-    **タイマー開始日時: **_${status.start?.toLocaleString('ja-JP') || '停止中'}:timer:_
+    **タイマー開始日時: **_${status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) || '停止中'}:timer:_
     **ポモドーロタイマー: **_${status.count} 回目 ${status.spent % POMODORO_DURATION} 分経過_
     **ポモドーロの状態: **_${status.start ? status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
     `.replace(/\n\s*/g, '\n');
@@ -168,10 +168,10 @@ export class PomodoroService {
    */
   private onVoiceStateUpdate(oldState: VoiceState, newState: VoiceState) {
     if (newState.member?.user.bot) { return; }
-    if (oldState.channelID !== newState.channelID && newState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
+    if (oldState.channel !== newState.channel && newState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
       newState.setMute(!this.getStatus().rest);
     }
-    if (oldState.channelID !== newState.channelID && oldState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
+    if (oldState.channel !== newState.channel && oldState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID && newState.channel) {
       newState.setMute(false);
     }
   }
