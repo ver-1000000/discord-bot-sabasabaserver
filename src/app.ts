@@ -7,6 +7,7 @@ import { MemosStore } from 'src/stores/memos.store';
 import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
 import { MemosService } from 'src/services/memos.service';
 import { PomodoroService } from 'src/services/pomodoro.service';
+import { InteractiveService } from 'src/services/interactive.service';
 
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
@@ -70,5 +71,6 @@ class App {
   new NotifyVoiceChannelService(client).run();
   new MemosService(client, memosStore).run();
   new PomodoroService(client).run();
-  new App(client);
+  new InteractiveService(client).run();
+  new App(client).run();
 })();

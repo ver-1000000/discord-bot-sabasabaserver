@@ -1,9 +1,11 @@
-import { Client, Message, VoiceChannel, VoiceState } from 'discord.js';
+import { Client, Message, StreamDispatcher, VoiceChannel, VoiceState } from 'discord.js';
 import { schedule, ScheduledTask } from 'node-cron';
 
-import { GenerateText } from 'src/lib';
-import { DISCORD_POMODORO_VOICE_CHANNEL_ID } from 'src/environment';
+import { PrettyText } from 'src/lib/pretty-text';
+import { DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_POMODORO_VOICE_CHANNEL_ID } from 'src/environment';
 
+/** デバッグモードフラグ。 */
+const DEBUG = false;
 /** 1ポモドーロに要する全体の時間。 */
 const POMODORO_DURATION = 30;
 /** POMODORO_DURATIONのうちの作業時間。 */
@@ -70,7 +72,7 @@ export class PomodoroService {
     if (message.author.bot) { return; } // botの発言は無視
     if (content.startsWith('!pomodoro.start')) { this.start(message); };
     if (content.startsWith('!pomodoro.stop')) { this.stop(message); };
-    if (content.startsWith('!pomodoro.status')) { this.prettyStatus(message); };
+    if (content.startsWith('!pomodoro.status')) { this.sendPrettyStatus(message); };
     if (content.startsWith('!pomodoro.help') || content === '!pomodoro') { this.help(message); };
   }
 
@@ -99,7 +101,7 @@ export class PomodoroService {
       if (status.spent % POMODORO_DURATION === POMODORO_WORK_DURATION) { this.doRest(); }
     });
     this.doWork();
-    channel.send(`ポモドーロを開始します:timer:\n**:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
+    channel.send(`ポモドーロを開始します:timer: **:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
   }
 
   /** ポモドーロタイマーを終了し、停止させて発言通知する。 */
@@ -111,10 +113,11 @@ export class PomodoroService {
   }
 
   /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして発言通知する。 */
-  private prettyStatus({ channel }: Message) {
+  private sendPrettyStatus({ channel }: Message) {
     const status = this.getStatus();
+    const date   = status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     const text   = `
-    **タイマー開始日時: **_${status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) || '停止中'}:timer:_
+    **タイマー開始日時: **_${date ? date + ' :timer:' : '停止中:sleeping:'}_
     **ポモドーロタイマー: **_${status.count} 回目 ${status.spent % POMODORO_DURATION} 分経過_
     **ポモドーロの状態: **_${status.start ? status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
     `.replace(/\n\s*/g, '\n');
@@ -123,7 +126,7 @@ export class PomodoroService {
 
   /** ヘルプを発言通知する。 */
   private help({ channel }: Message) {
-    const text = GenerateText.help(HELP.DESC, ...HELP.ITEMS);
+    const text = PrettyText.helpList(HELP.DESC, ...HELP.ITEMS);
     channel.send(text);
   }
 
@@ -140,8 +143,8 @@ export class PomodoroService {
   /** ポモドーロの作業時間開始を行う関数。 */
   private async doWork() {
     await this.setMute(false);
-    const playing = await this.playSound('src/assets/begin-work.ogg');
-    playing?.on('finish', () => this.setMute(true));
+    await this.playSound('src/assets/begin-work.ogg');
+    await this.setMute(true);
   }
 
   /** ポモドーロの作業時間終了を行う関数。 */
@@ -154,8 +157,13 @@ export class PomodoroService {
   private async playSound(input: string) {
     const connection   = this.voiceChannel?.join();
     const dispatcher   = (await connection)?.play(input);
-    dispatcher?.on('error', console.error);
-    return dispatcher;
+    const promise      = new Promise<StreamDispatcher>((resolve, reject) => {
+      return dispatcher?.on('finish', () => resolve(dispatcher)).on('error', e => reject(e));
+    }).then(async result => {
+      if (DEBUG) { this.sendPrettyStatus({ channel: await this.client.channels.fetch(DISCORD_NOTIFY_TEXT_CHANNEL_ID || '') } as Message); }
+      return result;
+    });
+    return promise;
   }
 
   /** `this.voiceChannel`のミュート状態を変更する。 */

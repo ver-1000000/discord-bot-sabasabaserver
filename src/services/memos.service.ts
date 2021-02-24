@@ -1,11 +1,23 @@
 import { Client, Message } from 'discord.js';
 
-import generateHelpText from 'src/helpers/generate-help-text';
+import { PrettyText } from 'src/lib/pretty-text';
 import { DISCORD_PRESENCE_NAME } from 'src/environment';
 import { MemosStore } from 'src/stores/memos.store';
 
 /** メッセージ(`content`)からコマンドに該当する文字列を除外する。 */
 const trimCommandsForConent = (content: string) => content.replace(/!memo\.?\w*\s*\n*/, '').trim();
+
+/** `GenerateText.help`に食わせるヘルプ文の定数。 */
+const HELP = {
+  DESC: `\`!memo\` コマンドは、**${DISCORD_PRESENCE_NAME}**にメモを記録させるためのコマンドです。`,
+  ITEMS: [
+    ['!memo.get hoge', '`"hoge"`の値を取得します'],
+    ['!memo.set hoge foo', '`"hoge"` に値として `"foo"` を設定します(値はマークダウンや改行が可能)'],
+    ['!memo.remove hoge', '設定済の `"hoge"` の値を削除します'],
+    ['!memo.list', 'メモされた値をすべて表示します'],
+    ['!memo.help', '`!memo` コマンドのヘルプを表示します(エイリアス: `!memo`)'],
+  ]
+} as const;
 
 /** `MemosStore`の値を操作するサービスクラス。 */
 export class MemosService {
@@ -58,14 +70,7 @@ export class MemosService {
 
   /** ヘルプを表示する。 */
   private help({ channel }: Message) {
-    const text = generateHelpText(
-      `\`!memo\` コマンドは、**${DISCORD_PRESENCE_NAME}**にメモを記録させるためのコマンドです。`,
-      ['!memo.get hoge', '`"hoge"`の値を取得します'],
-      ['!memo.set hoge foo', '`"hoge"` に値として `"foo"` を設定します(値はマークダウンや改行が可能)'],
-      ['!memo.remove hoge', '設定済の `"hoge"` の値を削除します'],
-      ['!memo.list', 'メモされた値をすべて表示します'],
-      ['!memo.help', '`!memo` コマンドのヘルプを表示します(エイリアス: `!memo`)'],
-    );
+    const text = PrettyText.helpList(HELP.DESC, ...HELP.ITEMS);
     channel.send(text);
   }
 }

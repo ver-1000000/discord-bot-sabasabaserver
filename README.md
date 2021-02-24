@@ -3,6 +3,8 @@ glitch上で動作させることを前提とした、TypeScriptで実装して�
 
 環境変数をいい感じにすればどのDiscordサーバーでも動くと思います。
 
+- https://github.com/ver-1000000/discord-bot-sabasabaserver.git
+
 ## 機能
 - `!memo`コマンドによる発言のメモ
   - 本bot起動後、`!memo`と発言することでヘルプが表示されます
