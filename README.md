@@ -25,6 +25,7 @@ glitch上で動作させることを前提とした、TypeScriptで実装して�
 ### 前提
 - DiscordサーバーにBOTがログインしている状態にしておくこと
 - Glitchにログインしておくこと
+- engineにnode 14を利用しているので、 https://glitch.happyfox.com/kb/article/59-can-i-change-the-version-of-node-js-my-project-uses/ を確認すること
 
 ### 手順
 1. https://glitch.com/ のヘッダーにある `New Project` から `Import from GitHub` を選択して `https://github.com/ver-1000000/discord-bot-sabasabaserver` を入力する
@@ -65,6 +66,6 @@ const sendGlitch = (uri, json) => {
 私がこのBOTを稼働させている[イイノテン](https://twitter.com/iinoten)さんの個人Discordサーバーです。
 
 ### チャンネルのIDどうやって見るん？
-WebブラウザからDiscordにアクセス(https://discord.com/app/)して、お目当てのチャンネルのURL見ればなんとなくわかると思います。
+[WebブラウザからDiscordにアクセス](https://discord.com/app/)して、お目当てのチャンネルのURL見ればなんとなくわかると思います。
 
 音声チャンネルはURLが表示されないので、開発者ツールとかで該当音声チャンネルのDOMを見るとなんとなくわかると思います。
