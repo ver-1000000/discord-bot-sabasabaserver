@@ -6,18 +6,16 @@ import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.ser
 import { CommandsFacade } from 'src/commands.facade';
 import { PomodoroService } from './services/pomodoro.service';
 
-const client = new Client();
-
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
-  constructor() {}
+  constructor(private client: Client) {}
 
   /** アプリケーションクラスを起動する。 */
   run() {
     this.confirmToken();
     this.launchWarmGlitch();
-    client.on('ready', () => this.initializeBotStatus(client.user));
-    client.login(DISCORD_LOGIN_TOKEN);
+    this.client.on('ready', () => this.initializeBotStatus(this.client.user));
+    this.client.login(DISCORD_LOGIN_TOKEN);
   }
 
   /** DISCORD_LOGIN_TOKENが設定されていなければ異常終了させる。 */
@@ -27,7 +25,7 @@ class App {
     process.exit(1);
   }
 
-  /** GLITCHのコールドスタート対策用のサービングを開始する。 */
+  /** Glitchのコールドスタート対策用のサービングを開始する。 */
   private launchWarmGlitch() {
     const whenPost = (req: IncomingMessage, res: ServerResponse) => {
       const chunks: string[] = [];
@@ -49,10 +47,16 @@ class App {
     user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
   }
 }
-const notify   = new NotifyVoiceChannelService(client);
-const pomodoro = new PomodoroService(client);
-const commands = new CommandsFacade(client, pomodoro);
-notify.run();
-pomodoro.run();
-commands.run();
-new App().run();
+
+/** 依存を解決しつつアプリケーションを起動する。 */
+(() => {
+  const client   = new Client();
+  const notify   = new NotifyVoiceChannelService(client);
+  const pomodoro = new PomodoroService(client);
+  const commands = new CommandsFacade(client, pomodoro);
+  const app      = new App(client);
+  notify.run();
+  pomodoro.run();
+  commands.run();
+  app.run();
+})();
