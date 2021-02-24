@@ -1,17 +1,8 @@
 import { Message } from 'discord.js';
 
+import generateHelpText from 'src/helpers/generate-help-text';
 import { DISCORD_PRESENCE_NAME } from 'src/environment';
 import { MemosStore } from 'src/stores/memos.store';
-
-/** ヘルプ時に表示するヒアドキュメント。 */
-const HELP_TEXT = `
-\`!memo\` コマンドは、**${DISCORD_PRESENCE_NAME}**にメモを記録させるためのコマンドです。\n
-_**\`!memo.get hoge     \`**_ - \`"hoge"\` の値を取得します
-_**\`!memo.set hoge foo \`**_ - \`"hoge"\` に値として \`"foo"\` を設定します(値はマークダウンや改行が可能)
-_**\`!memo.remove hoge  \`**_ - 設定済の \`"hoge"\` の値を削除します
-_**\`!memo.list         \`**_ - メモされた値をすべて表示します
-_**\`!memo.help         \`**_ - \`!memo\` コマンドのヘルプを表示します(エイリアス: \`!memo\`)
-`;
 
 /** メッセージ(`content`)からコマンドに該当する文字列を除外する。 */
 const trimCommandsForConent = (content: string) => content.replace(/!memo\.?\w*\s*\n*/, '').trim();
@@ -52,6 +43,14 @@ export class MemosService {
 
   /** ヘルプを表示する。 */
   help({ channel }: Message) {
-    channel.send(HELP_TEXT);
+    const text = generateHelpText(
+      `\`!memo\` コマンドは、**${DISCORD_PRESENCE_NAME}**にメモを記録させるためのコマンドです。`,
+      ['!memo.get hoge', '`"hoge"`の値を取得します'],
+      ['!memo.set hoge foo', '`"hoge"` に値として `"foo"` を設定します(値はマークダウンや改行が可能)'],
+      ['!memo.remove hoge', '設定済の `"hoge"` の値を削除します'],
+      ['!memo.list', 'メモされた値をすべて表示します'],
+      ['!memo.help', '`!memo` コマンドのヘルプを表示します(エイリアス: `!memo`)'],
+    );
+    channel.send(text);
   }
 }

@@ -4,19 +4,19 @@ import { Client, ClientUser } from 'discord.js';
 import { DISCORD_LOGIN_TOKEN, DISCORD_PRESENCE_NAME } from 'src/environment';
 import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
 import { CommandsFacade } from 'src/commands.facade';
+import { PomodoroService } from './services/pomodoro.service';
+
+const client = new Client();
 
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
-  constructor(private commands: CommandsFacade, private notify: NotifyVoiceChannelService) {}
+  constructor() {}
 
   /** アプリケーションクラスを起動する。 */
   run() {
-    const client = new Client();
     this.confirmToken();
     this.launchWarmGlitch();
     client.on('ready', () => this.initializeBotStatus(client.user));
-    client.on('message', message => this.commands.run(message));
-    client.on('voiceStateUpdate', (oldState, newState) => this.notify.run(oldState, newState, client));
     client.login(DISCORD_LOGIN_TOKEN);
   }
 
@@ -49,6 +49,10 @@ class App {
     user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
   }
 }
-const commands = new CommandsFacade();
-const notify   = new NotifyVoiceChannelService();
-new App(commands, notify).run();
+const notify   = new NotifyVoiceChannelService(client);
+const pomodoro = new PomodoroService(client);
+const commands = new CommandsFacade(client, pomodoro);
+notify.run();
+pomodoro.run();
+commands.run();
+new App().run();
