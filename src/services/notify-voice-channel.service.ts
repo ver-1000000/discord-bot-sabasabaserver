@@ -6,9 +6,10 @@ import { DISCORD_NOTIFY_TEXT_CHANNEL_ID } from 'src/environment';
 export class NotifyVoiceChannelService {
   constructor(private client: Client) {}
 
-  /** Clientからの音声チャンネルイベント監視を開始する。 */
+  /** Clientからのイベント監視を開始する。 */
   run() {
     this.client.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState));
+    return this;
   }
 
   /**

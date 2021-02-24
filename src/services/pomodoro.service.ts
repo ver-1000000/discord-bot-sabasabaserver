@@ -1,6 +1,7 @@
 import { Client, Message, VoiceChannel, VoiceState } from 'discord.js';
+import { schedule, ScheduledTask } from 'node-cron';
 
-import generateHelpText from 'src/helpers/generate-help-text';
+import { GenerateText } from 'src/lib';
 import { DISCORD_POMODORO_VOICE_CHANNEL_ID } from 'src/environment';
 
 /** 1ポモドーロに要する全体の時間。 */
@@ -22,50 +23,31 @@ interface Status {
   rest: boolean
 }
 
-/**
- * `PomodoroService`で利用されるタイマークラス。
- * タイマーが始動した時間と、分ごとの動作を監視する関数を提供する。
- */
-class MinutesTimer {
-  /** `this.on`関数が呼ばれた日時。 */
-  startDate: Date | null = null;
+/** `GenerateText.help`に食わせるヘルプ文の定数。 */
+const HELP = {
+  DESC: [
+    '`!pomodoro` コマンドは、音声チャンネルを利用した**ポモドーロタイマー**を提供します。',
+    '**ポモドーロタイマー用音声チャンネルに参加した状態**で、以下のコマンドをご利用ください。'
+  ].join('\n'),
+  ITEMS: [
+    ['!pomodoro.start', 'ポモドーロタイマーを開始(リセット)します'],
+    ['!pomodoro.stop', 'ポモドーロタイマーを終了します'],
+    ['!pomodoro.status', '現在のポモドーロステータスを表示します'],
+    ['!pomodoro.help', '`!pomodoro` コマンドのヘルプを表示します(エイリアス: `!pomodoro`)']
+  ]
+} as const;
 
-  constructor() {}
-
-  /** 1分ごとにコールバック関数を実行する監視関数。 */
-  on(callback: (callbackDate: Date) => void) {
-    this.startDate = new Date(new Date().setSeconds(0));
-    /** onを複数回走らせたときに、timerが重複しないように確認するための`this.start`参照。 */
-    const copiedStartDate = this.startDate;
-    /** 1000ms間隔で`timerMinutes`を`date`の値で呼び出す。 */
-    const timer = (date: Date) => setTimeout(() => timerMinutes(date), 1000);
-    /**
-     * 渡された`date`と現在の日時(`compareDate`)のMinutesに違いがあれば、コールバックを実行して新しいtimerを呼び、
-     * 違いがなければ、コールバックは実行せず渡された`date`でtimerを呼ぶ。
-     */
-    const timerMinutes = (date: Date) => {
-      const compareDate = new Date();
-      if (copiedStartDate !== this.startDate) { // 他のonが走っているので終了
-        return;
-      } else if (date.getMinutes() === compareDate.getMinutes()) {
-        timer(date);
-      } else {
-        callback(compareDate);
-        timer(compareDate);
-      }
-    };
-    timerMinutes(copiedStartDate);
-  }
-
-  /** `this.startDate`にnullを入れることで、現在のタイマーを停止する。 */
-  off() {
-    this.startDate = null;
-  }
+/** node-cronに付加情報を付与するためのインターフェース。 */
+interface Scheduled {
+  /** scheduled.task  設定されているcron */
+  task: ScheduledTask | null;
+  /** scheduled.date  タスクが設定(`this.start`)された日時 */
+  date: Date | null;
 }
 
 /** ポモドーロタイマー機能を提供するアプリケーションクラス。 */
 export class PomodoroService {
-  private minutesTimer = new MinutesTimer();
+  private scheduled: Scheduled = { task: null, date: null };
 
   /** ポモドーロ用音声チャンネルの取得。 */
   private get voiceChannel() {
@@ -74,15 +56,44 @@ export class PomodoroService {
 
   constructor(private client: Client) {}
 
-  /** Clientからの音声チャンネルイベント監視を開始する。 */
+  /** Clientからのイベント監視を開始する。 */
   run() {
     this.client.on('ready', async () => await this.setMute(false));
     this.client.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState));
+    this.client.on('message', message => this.onMessage(message));
+    return this;
   }
 
-  /** `this.minutesTimer`を初期化し、ポモドーロタイマーを起動させる。 */
-  start({ channel }: Message) {
-    this.minutesTimer.on(date => {
+  /** Messageから各処理を呼び出すFacade関数。 */
+  private onMessage(message: Message) {
+    const content = message.content;
+    if (message.author.bot) { return; } // botの発言は無視
+    if (content.startsWith('!pomodoro.start')) { this.start(message); };
+    if (content.startsWith('!pomodoro.stop')) { this.stop(message); };
+    if (content.startsWith('!pomodoro.status')) { this.prettyStatus(message); };
+    if (content.startsWith('!pomodoro.help') || content === '!pomodoro') { this.help(message); };
+  }
+
+  /**
+   * `voiceStateUpdate`イベントの`oldState`と`newState`の状態から、ポモドーロ用音声チャンネルの出入りを検知し、
+   * ミュートの状態を適宜切り替える。
+   * これにより、作業中に入退室したメンバーのミュート状態を最新に保つ。
+   */
+  private onVoiceStateUpdate(oldState: VoiceState, newState: VoiceState) {
+    if (newState.member?.user.bot) { return; }
+    if (oldState.channel !== newState.channel && newState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
+      newState.setMute(!this.getStatus().rest);
+    }
+    if (oldState.channel !== newState.channel && oldState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID && newState.channel) {
+      newState.setMute(false);
+    }
+  }
+
+  /** `this.scheduled`を初期化し、ポモドーロタイマーを起動させて発言通知する。 */
+  private start({ channel }: Message) {
+    this.scheduled.date = new Date();
+    this.scheduled.task = schedule('* * * * *', () => {
+      const date   = new Date();
       const status = this.getStatus(date);
       if (status.spent % POMODORO_DURATION === 0 && status.count > 1) { this.doWork(); }
       if (status.spent % POMODORO_DURATION === POMODORO_WORK_DURATION) { this.doRest(); }
@@ -91,15 +102,16 @@ export class PomodoroService {
     channel.send(`ポモドーロを開始します:timer:\n**:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
   }
 
-  /** ポモドーロタイマーを終了し、停止させる。 */
-  async stop({ channel }: Message) {
-    this.minutesTimer.off();
+  /** ポモドーロタイマーを終了し、停止させて発言通知する。 */
+  private async stop({ channel }: Message) {
+    this.scheduled.date = null;
+    this.scheduled.task?.destroy();
     await this.setMute(false);
     channel.send('ポモドーロを終了します:timer: お疲れ様でした:island:');
   }
 
-  /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして配信する。 */
-  prettyStatus({ channel }: Message) {
+  /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして発言通知する。 */
+  private prettyStatus({ channel }: Message) {
     const status = this.getStatus();
     const text   = `
     **タイマー開始日時: **_${status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) || '停止中'}:timer:_
@@ -109,25 +121,15 @@ export class PomodoroService {
     channel.send(text);
   }
 
-  /** ヘルプを表示する。 */
-  help({ channel }: Message) {
-    const desc = [
-      '`!pomodoro` コマンドは、音声チャンネルを利用した**ポモドーロタイマー**を提供します。',
-      '**ポモドーロタイマー用音声チャンネルに参加した状態**で、以下のコマンドをご利用ください。'
-    ].join('\n');
-    const text = generateHelpText(
-      desc,
-      ['!pomodoro.start', 'ポモドーロタイマーを開始(リセット)します'],
-      ['!pomodoro.stop', 'ポモドーロタイマーを終了します'],
-      ['!pomodoro.status', '現在のポモドーロステータスを表示します'],
-      ['!pomodoro.help', '`!pomodoro` コマンドのヘルプを表示します(エイリアス: `!pomodoro`)'],
-    );
+  /** ヘルプを発言通知する。 */
+  private help({ channel }: Message) {
+    const text = GenerateText.help(HELP.DESC, ...HELP.ITEMS);
     channel.send(text);
   }
 
-  /** `this.minutesTimer.startDate`と`date`の値から差分を計算し、現在のタイマー状況を返却する。 */
+  /** `this.scheduled.startDate`と`date`の値から差分を計算し、現在のタイマー状況を返却する。 */
   private getStatus(date = new Date()): Status {
-    const start = this.minutesTimer.startDate;
+    const start = this.scheduled.date;
     if (start == null) { return { start, spent: 0, count: 0, rest: true }; }
     const spent = Math.floor((date.getTime() - start.getTime()) / MINUTES_CONSTANT);
     const count = Math.floor(spent / POMODORO_DURATION) + 1;
@@ -159,20 +161,5 @@ export class PomodoroService {
   /** `this.voiceChannel`のミュート状態を変更する。 */
   private setMute(mute: boolean) {
     return Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(mute)) || []);
-  }
-
-  /**
-   * `voiceStateUpdate`イベントの`oldState`と`newState`の状態から、ポモドーロ用音声チャンネルの出入りを検知し、
-   * ミュートの状態を適宜切り替える。
-   * これにより、作業中に入退室したメンバーのミュート状態を最新に保つ。
-   */
-  private onVoiceStateUpdate(oldState: VoiceState, newState: VoiceState) {
-    if (newState.member?.user.bot) { return; }
-    if (oldState.channel !== newState.channel && newState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
-      newState.setMute(!this.getStatus().rest);
-    }
-    if (oldState.channel !== newState.channel && oldState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID && newState.channel) {
-      newState.setMute(false);
-    }
   }
 }

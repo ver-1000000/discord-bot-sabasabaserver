@@ -1,4 +1,4 @@
-import { Message } from 'discord.js';
+import { Client, Message } from 'discord.js';
 
 import generateHelpText from 'src/helpers/generate-help-text';
 import { DISCORD_PRESENCE_NAME } from 'src/environment';
@@ -9,12 +9,27 @@ const trimCommandsForConent = (content: string) => content.replace(/!memo\.?\w*\
 
 /** `MemosStore`の値を操作するサービスクラス。 */
 export class MemosService {
-  private memosStore = new MemosStore();
+  constructor(private client: Client, private memosStore: MemosStore) {}
 
-  constructor() {}
+  /** Clientからのイベント監視を開始する。 */
+  run() {
+    this.client.on('message', message => this.onMessage(message));
+    return this;
+  }
+
+  /** `mesage`で関数を振り分けるファサード。 */
+  private onMessage(message: Message) {
+    const content = message.content;
+    if (message.author.bot) { return; } // botの発言は無視
+    if (content.startsWith('!memo.get')) { this.get(message); };
+    if (content.startsWith('!memo.set')) { this.set(message); };
+    if (content.startsWith('!memo.remove')) { this.remove(message); };
+    if (content.startsWith('!memo.list')) { this.list(message); };
+    if (content.startsWith('!memo.help') || content === '!memo') { this.help(message); };
+  }
 
   /** keyにマッチする値を取得する。 */
-  get({ author, channel, content }: Message) {
+  private get({ author, channel, content }: Message) {
     const key = trimCommandsForConent(content);
     channel.send(`${author} ${this.memosStore.get(key).pretty}`);
   }
@@ -23,7 +38,7 @@ export class MemosService {
    * bodyの最初の空白(もしくは改行)で前半部と後半部を分け、
    * 前半部をキーに、後半部を値にしたものをmemoとして登録する。
    */
-  set({ author, channel, content }: Message) {
+  private set({ author, channel, content }: Message) {
     const body  = trimCommandsForConent(content);
     const key   = body.replace(/\s.*/g, '');
     const value = body.replace(key, '').trim();
@@ -31,18 +46,18 @@ export class MemosService {
   }
 
   /** bodyにマッチする値を削除する。 */
-  remove({ author, channel, content }: Message) {
+  private remove({ author, channel, content }: Message) {
     const body  = trimCommandsForConent(content);
     channel.send(`${author} ${this.memosStore.del(body).pretty}`);
   }
 
   /** memoの値を一覧する。 */
-  list({ channel }: Message) {
+  private list({ channel }: Message) {
     channel.send(this.memosStore.data().pretty);
   }
 
   /** ヘルプを表示する。 */
-  help({ channel }: Message) {
+  private help({ channel }: Message) {
     const text = generateHelpText(
       `\`!memo\` コマンドは、**${DISCORD_PRESENCE_NAME}**にメモを記録させるためのコマンドです。`,
       ['!memo.get hoge', '`"hoge"`の値を取得します'],
