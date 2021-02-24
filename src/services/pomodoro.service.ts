@@ -75,7 +75,8 @@ export class PomodoroService {
   constructor(private client: Client) {}
 
   /** Clientからの音声チャンネルイベント監視を開始する。 */
-  run() {
+  async run() {
+    await this.setMute(false);
     this.client.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState));
   }
 
@@ -93,7 +94,7 @@ export class PomodoroService {
   /** ポモドーロタイマーを終了し、停止させる。 */
   async stop({ channel }: Message) {
     this.minutesTimer.off();
-    await Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(false, 'ポモドーロ 終了')) || []);
+    await this.setMute(false);
     channel.send('ポモドーロを終了します:timer: お疲れ様でした:island:');
   }
 
@@ -124,16 +125,26 @@ export class PomodoroService {
     channel.send(text);
   }
 
+  /** `this.minutesTimer.startDate`と`date`の値から差分を計算し、現在のタイマー状況を返却する。 */
+  private getStatus(date = new Date()): Status {
+    const start = this.minutesTimer.startDate;
+    if (start == null) { return { start, spent: 0, count: 0, rest: true }; }
+    const spent = Math.floor((date.getTime() - start.getTime()) / MINUTES_CONSTANT);
+    const count = Math.floor(spent / POMODORO_DURATION) + 1;
+    const rest  = spent % POMODORO_DURATION >= POMODORO_WORK_DURATION;
+    return { start, spent, count, rest };
+  }
+
   /** ポモドーロの作業時間開始を行う関数。 */
   private async doWork() {
-    await Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(false, 'ポモドーロ 開始準備')) || []);
+    await this.setMute(false);
     const playing = await this.playSound('src/assets/begin-work.ogg');
-    playing?.on('finish', () => this.voiceChannel?.members.forEach(member => member.voice.setMute(true, 'ポモドーロ 作業中')));
+    playing?.on('finish', () => this.setMute(true));
   }
 
   /** ポモドーロの作業時間終了を行う関数。 */
   private async doRest() {
-    await Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(false, 'ポモドーロ 休憩中')) || []);
+    await this.setMute(false);
     await this.playSound('src/assets/begin-rest.ogg');
   }
 
@@ -145,14 +156,9 @@ export class PomodoroService {
     return dispatcher;
   }
 
-  /** `this.minutesTimer.startDate`と`date`の値から差分を計算し、現在のタイマー状況を返却する。 */
-  private getStatus(date = new Date()): Status {
-    const start = this.minutesTimer.startDate;
-    if (start == null) { return { start, spent: 0, count: 0, rest: true }; }
-    const spent = Math.floor((date.getTime() - start.getTime()) / MINUTES_CONSTANT);
-    const count = Math.floor(spent / POMODORO_DURATION) + 1;
-    const rest  = spent % POMODORO_DURATION >= POMODORO_WORK_DURATION;
-    return { start, spent, count, rest };
+  /** `this.voiceChannel`のミュート状態を変更する。 */
+  private setMute(mute: boolean) {
+    return Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(mute)) || []);
   }
 
   /**
