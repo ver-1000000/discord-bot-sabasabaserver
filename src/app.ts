@@ -48,7 +48,7 @@ class App {
   /** readyイベントにフックして、ボットのステータスなどを設定する。 */
   private initializeBotStatus(user: ClientUser | null) {
     console.log('ready...');
-    user?.setPresence({ activity: { name: DISCORD_PRESENCE_NAME || 'AWESOME BOT' } });
+    user?.setPresence({ activity: { name: 'みんなの発言', type: 'WATCHING' } });
     this.send(`${DISCORD_PRESENCE_NAME} is ranning :runner:`);
   }
 

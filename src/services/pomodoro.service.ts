@@ -102,6 +102,7 @@ export class PomodoroService {
     });
     this.doWork();
     channel.send(`ポモドーロを開始します:timer: **:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
+    this.client.user?.setPresence({ activity: { name: '🍅ポモドーロ', type: 'PLAYING' } });
   }
 
   /** ポモドーロタイマーを終了し、停止させて発言通知する。 */
@@ -110,6 +111,7 @@ export class PomodoroService {
     this.scheduled.task?.destroy();
     await this.setMute(false);
     channel.send('ポモドーロを終了します:timer: お疲れ様でした:island:');
+    this.client.user?.setPresence({ activity: { name: 'みんなの発言', type: 'WATCHING' } });
   }
 
   /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして発言通知する。 */
