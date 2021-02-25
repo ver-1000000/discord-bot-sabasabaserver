@@ -7,22 +7,33 @@ import { DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_POMODORO_VOICE_CHANNEL_ID } fro
 /** デバッグモードフラグ。 */
 const DEBUG = false;
 /** 1ポモドーロに要する全体の時間。 */
-const POMODORO_DURATION = 30;
+const POMODORO_DURATION = DEBUG ? 2 : 30;
 /** POMODORO_DURATIONのうちの作業時間。 */
-const POMODORO_WORK_DURATION = 25;
-/** `分`を表すときにかける数字。 */
-const MINUTES_CONSTANT = 60 * 1000;
+const POMODORO_WORK_DURATION = DEBUG ? 1 : 25;
 
-/** `PomodoroService#status()`が返却する値の型。 */
-interface Status {
+/** `PomodoroService`の現在の状態を表すクラス。 */
+class Status {
   /** ポモドーロタイマーが始動した時間。 */
-  start: Date | null,
+  start: Date | null = null;
   /** ポモドーロタイマーが始動してから経過した時間(分)。 */
-  spent: number,
+  spent = 0;
   /** 何度目のポモドーロかの回数。 */
-  count: number,
+  count = 0;
   /** 現在休憩中のときtrueになる。 */
-  rest: boolean
+  rest = false;
+  /** 設定されているcronのスケジュール。 */
+  task: ScheduledTask | null = null;
+
+  constructor() {}
+
+  /** 初期値に戻す。 */
+  reset() {
+    this.start = null;
+    this.spent = 0;
+    this.count = 0;
+    this.rest  = false;
+    this.task?.destroy();
+  }
 }
 
 /** `GenerateText.help`に食わせるヘルプ文の定数。 */
@@ -39,17 +50,9 @@ const HELP = {
   ]
 } as const;
 
-/** node-cronに付加情報を付与するためのインターフェース。 */
-interface Scheduled {
-  /** scheduled.task  設定されているcron */
-  task: ScheduledTask | null;
-  /** scheduled.date  タスクが設定(`this.start`)された日時 */
-  date: Date | null;
-}
-
 /** ポモドーロタイマー機能を提供するアプリケーションクラス。 */
 export class PomodoroService {
-  private scheduled: Scheduled = { task: null, date: null };
+  private status = new Status();
 
   /** ポモドーロ用音声チャンネルの取得。 */
   private get voiceChannel() {
@@ -84,31 +87,34 @@ export class PomodoroService {
   private onVoiceStateUpdate(oldState: VoiceState, newState: VoiceState) {
     if (newState.member?.user.bot) { return; }
     if (oldState.channel !== newState.channel && newState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID) {
-      newState.setMute(!this.getStatus().rest);
+      newState.setMute(!this.status.rest);
     }
     if (oldState.channel !== newState.channel && oldState.channelID === DISCORD_POMODORO_VOICE_CHANNEL_ID && newState.channel) {
       newState.setMute(false);
     }
   }
 
-  /** `this.scheduled`を初期化し、ポモドーロタイマーを起動させて発言通知する。 */
+  /** cronの通知を監視する。 `this.status.spent`を加算していき、`this.status`の値の内容で様々な副作用を呼び起こす。 */
+  private onSchedule() {
+    this.status.spent++;
+    if (DEBUG) { console.log({ ...this.status, task: !!this.status.task }); }
+    if (this.status.spent === POMODORO_WORK_DURATION) { this.doRest(); }
+    if (this.status.spent === POMODORO_DURATION) { this.doWork(); }
+  }
+
+  /** `this.status`を初期化し、ポモドーロタイマーを起動させて発言通知する。 */
   private start({ channel }: Message) {
-    this.scheduled.date = new Date();
-    this.scheduled.task = schedule('* * * * *', () => {
-      const date   = new Date();
-      const status = this.getStatus(date);
-      if (status.spent % POMODORO_DURATION === 0 && status.count > 1) { this.doWork(); }
-      if (status.spent % POMODORO_DURATION === POMODORO_WORK_DURATION) { this.doRest(); }
-    });
+    this.status.reset();
+    this.status.start = ((d: Date) => { d.setSeconds(0); return d })(new Date());
+    this.status.task  = schedule('* * * * *', () => this.onSchedule());
     this.doWork();
     channel.send(`ポモドーロを開始します:timer: **:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
     this.client.user?.setPresence({ activity: { name: '🍅ポモドーロ', type: 'PLAYING' } });
   }
 
-  /** ポモドーロタイマーを終了し、停止させて発言通知する。 */
+  /** ポモドーロタイマーを終了/停止させて発言通知する。 */
   private async stop({ channel }: Message) {
-    this.scheduled.date = null;
-    this.scheduled.task?.destroy();
+    this.status.reset();
     await this.setMute(false);
     channel.send('ポモドーロを終了します:timer: お疲れ様でした:island:');
     this.client.user?.setPresence({ activity: { name: 'みんなの発言', type: 'WATCHING' } });
@@ -116,12 +122,11 @@ export class PomodoroService {
 
   /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして発言通知する。 */
   private sendPrettyStatus({ channel }: Message) {
-    const status = this.getStatus();
-    const date   = status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-    const text   = `
+    const date = this.status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const text = `
     **タイマー開始日時: **_${date ? date + ' :timer:' : '停止中:sleeping:'}_
-    **ポモドーロタイマー: **_${status.count} 回目 ${status.spent % POMODORO_DURATION} 分経過_
-    **ポモドーロの状態: **_${status.start ? status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
+    **ポモドーロタイマー: **_${this.status.count} 回目 ${this.status.spent % POMODORO_DURATION} 分経過_
+    **ポモドーロの状態: **_${this.status.start ? this.status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
     `.replace(/\n\s*/g, '\n');
     channel.send(text);
   }
@@ -132,18 +137,11 @@ export class PomodoroService {
     channel.send(text);
   }
 
-  /** `this.scheduled.startDate`と`date`の値から差分を計算し、現在のタイマー状況を返却する。 */
-  private getStatus(date = new Date()): Status {
-    const start = this.scheduled.date;
-    if (start == null) { return { start, spent: 0, count: 0, rest: true }; }
-    const spent = Math.floor((date.getTime() - start.getTime()) / MINUTES_CONSTANT);
-    const count = Math.floor(spent / POMODORO_DURATION) + 1;
-    const rest  = spent % POMODORO_DURATION >= POMODORO_WORK_DURATION;
-    return { start, spent, count, rest };
-  }
-
   /** ポモドーロの作業時間開始を行う関数。 */
   private async doWork() {
+    this.status.count++;
+    this.status.spent = 0;
+    this.status.rest  = false;
     await this.setMute(false);
     await this.playSound('src/assets/begin-work.ogg');
     await this.setMute(true);
@@ -151,6 +149,7 @@ export class PomodoroService {
 
   /** ポモドーロの作業時間終了を行う関数。 */
   private async doRest() {
+    this.status.rest = true;
     await this.setMute(false);
     await this.playSound('src/assets/begin-rest.ogg');
   }
@@ -168,8 +167,11 @@ export class PomodoroService {
     return promise;
   }
 
-  /** `this.voiceChannel`のミュート状態を変更する。 */
+  /**
+   * `this.voiceChannel`のミュート状態を変更する。
+   * - `member.voice.connection`を確認することで、Promiseの解決中に離脱したユーザーをミュートして例外が発生するのを防ぐ
+   */
   private setMute(mute: boolean) {
-    return Promise.all(this.voiceChannel?.members.map(member => member.voice.setMute(mute)) || []);
+    return Promise.all(this.voiceChannel?.members.map(async member => member.voice.connection ? member.voice.setMute(mute) : member) || []);
   }
 }

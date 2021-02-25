@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npm run build && npm run serve",
     "build": "npx tsc",
-    "serve": "NODE_PATH=dist node dist/src"
+    "serve": "NODE_PATH=dist node dist/src --trace-warnings"
   },
   "repository": {
     "type": "git",
