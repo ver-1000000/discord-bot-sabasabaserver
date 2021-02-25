@@ -172,6 +172,6 @@ export class PomodoroService {
    * - `member.voice.connection`を確認することで、Promiseの解決中に離脱したユーザーをミュートして例外が発生するのを防ぐ
    */
   private setMute(mute: boolean) {
-    return Promise.all(this.voiceChannel?.members.map(async member => member.voice.connection ? member.voice.setMute(mute) : member) || []);
+    return Promise.all(this.voiceChannel?.members.map(member => member.voice.channel ? member.voice.setMute(mute) : member) || []);
   }
 }
