@@ -1,4 +1,4 @@
-import { Client, Message, StreamDispatcher, VoiceChannel, VoiceState } from 'discord.js';
+import { MessageReaction, Client, Message, StreamDispatcher, User, VoiceChannel, VoiceState } from 'discord.js';
 import { schedule, ScheduledTask } from 'node-cron';
 
 import { PrettyText } from 'src/lib/pretty-text';
@@ -132,9 +132,29 @@ export class PomodoroService {
   }
 
   /** ヘルプを発言通知する。 */
-  private help({ channel }: Message) {
-    const text = PrettyText.helpList(HELP.DESC, ...HELP.ITEMS);
-    channel.send(text);
+  private async help({ channel }: Message) {
+    const text    = PrettyText.helpList(HELP.DESC, ...HELP.ITEMS);
+    const message = await channel.send(text);
+    this.commandsEmoji(message);
+  }
+
+  /** メッセージへのリアクションからコマンドを実行するための関数。 */
+  private async commandsEmoji(message: Message) {
+    const EMOJIS = { ONE: '1️⃣', TWO: '2️⃣', THREE: '3️⃣' };
+    await Promise.all(Object.values(EMOJIS).map(async name => await message.react(name)));
+    const time       = 60000;
+    const additional =
+      `\n\n**${Math.round(time / 1000)}秒以内にこのメッセージへ、以下のリアクション(絵文字)を行うことでもコマンドを実行できます。**\n` +
+      PrettyText.code('1️⃣ !pomodoro.start! / 2️⃣ !pomodoro.stop / 3️⃣ !pomodoro.status');
+    await message.edit(message.content + additional);
+    const filter   = (reaction: MessageReaction, _: User) => Object.values(EMOJIS).includes(reaction.emoji?.name || '');
+    const reaction = (await message.awaitReactions(filter, { max: 1, time }))?.first();
+    await message.reactions.removeAll();
+    await message.edit(message.content.replace(additional, ''));
+    if (reaction?.emoji?.name) { await message.channel.send(`---\n${reaction.emoji.name}を選択しました。\n---`) }
+    if (reaction?.emoji?.name === EMOJIS.ONE) { this.start(message); }
+    if (reaction?.emoji?.name === EMOJIS.TWO) { this.stop(message); }
+    if (reaction?.emoji?.name === EMOJIS.THREE) { this.sendPrettyStatus(message); }
   }
 
   /** ポモドーロの作業時間開始を行う関数。 */
