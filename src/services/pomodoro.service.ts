@@ -1,8 +1,9 @@
-import { MessageReaction, Client, Message, StreamDispatcher, User, VoiceChannel, VoiceState } from 'discord.js';
-import { schedule, ScheduledTask } from 'node-cron';
+import { MessageReaction, Client, Message, StreamDispatcher, User, VoiceChannel, VoiceState, TextChannel } from 'discord.js';
+import { schedule } from 'node-cron';
 
 import { PrettyText } from 'src/lib/pretty-text';
-import { DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_POMODORO_VOICE_CHANNEL_ID } from 'src/environment';
+import { DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_POMODORO_VOICE_CHANNEL_ID, DISCORD_PRESENCE_NAME } from 'src/environment';
+import { PomodoroStatus } from 'src/models/pomodoro-status.model';
 
 /** デバッグモードフラグ。 */
 const DEBUG = false;
@@ -10,31 +11,6 @@ const DEBUG = false;
 const POMODORO_DURATION = DEBUG ? 2 : 30;
 /** POMODORO_DURATIONのうちの作業時間。 */
 const POMODORO_WORK_DURATION = DEBUG ? 1 : 25;
-
-/** `PomodoroService`の現在の状態を表すクラス。 */
-class Status {
-  /** ポモドーロタイマーが始動した時間。 */
-  start: Date | null = null;
-  /** ポモドーロタイマーが始動してから経過した時間(分)。 */
-  spent = 0;
-  /** 何度目のポモドーロかの回数。 */
-  count = 0;
-  /** 現在休憩中のときtrueになる。 */
-  rest = false;
-  /** 設定されているcronのスケジュール。 */
-  task: ScheduledTask | null = null;
-
-  constructor() {}
-
-  /** 初期値に戻す。 */
-  reset() {
-    this.start = null;
-    this.spent = 0;
-    this.count = 0;
-    this.rest  = false;
-    this.task?.destroy();
-  }
-}
 
 /** `GenerateText.help`に食わせるヘルプ文の定数。 */
 const HELP = {
@@ -52,7 +28,7 @@ const HELP = {
 
 /** ポモドーロタイマー機能を提供するアプリケーションクラス。 */
 export class PomodoroService {
-  private status = new Status();
+  status = new PomodoroStatus();
 
   /** ポモドーロ用音声チャンネルの取得。 */
   private get voiceChannel() {
@@ -63,7 +39,10 @@ export class PomodoroService {
 
   /** Clientからのイベント監視を開始する。 */
   run() {
-    this.client.on('ready', async () => await this.setMute(false));
+    this.client.on('ready', async () => {
+      await this.setMute(false);
+      this.restart();
+    });
     this.client.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState));
     this.client.on('message', message => this.onMessage(message));
     return this;
@@ -105,10 +84,23 @@ export class PomodoroService {
   /** `this.status`を初期化し、ポモドーロタイマーを起動させて発言通知する。 */
   private start({ channel }: Message) {
     this.status.reset();
-    this.status.start = ((d: Date) => { d.setSeconds(0); return d })(new Date());
+    this.status.startAt = ((d: Date) => { d.setSeconds(0); return d })(new Date());
     this.status.task  = schedule('* * * * *', () => this.onSchedule());
     this.doWork();
     channel.send(`ポモドーロを開始します:timer: **:loudspeaker:${this.voiceChannel?.name}** に参加して、作業を始めてください:fire:`);
+    this.client.user?.setPresence({ activity: { name: '🍅ポモドーロ', type: 'PLAYING' } });
+  }
+
+  /** PomodoroService起動時に`this.status.startAt`が設定されている時、中断からの復帰を行う。 */
+  private restart() {
+    if (this.status.startAt == null) { return; }
+    this.status.task    = schedule('* * * * *', () => this.onSchedule());
+    const notifyChannel = this.client.channels.cache.get(DISCORD_NOTIFY_TEXT_CHANNEL_ID || '') as TextChannel | undefined;
+    this.setMute(!this.status.rest);
+    notifyChannel?.send(
+      `:warning: なにか問題があり **${DISCORD_PRESENCE_NAME}** が停止してしまったため、ポモドーロを再開しました。\n` +
+        `現在、_** ${this.status.wave} 回目 ${this.status.spent} 分経過、${this.status.rest ? '休憩' : '作業'}中**_です。`
+    );
     this.client.user?.setPresence({ activity: { name: '🍅ポモドーロ', type: 'PLAYING' } });
   }
 
@@ -122,11 +114,11 @@ export class PomodoroService {
 
   /** ステータスをユーザーフレンドリーな文字列として整形した値をメッセージとして発言通知する。 */
   private sendPrettyStatus({ channel }: Message) {
-    const date = this.status.start?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const date = this.status.startAt?.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     const text = `
     **タイマー開始日時: **_${date ? date + ' :timer:' : '停止中:sleeping:'}_
-    **ポモドーロタイマー: **_${this.status.count} 回目 ${this.status.spent % POMODORO_DURATION} 分経過_
-    **ポモドーロの状態: **_${this.status.start ? this.status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
+    **ポモドーロタイマー: **_${this.status.wave} 回目 ${this.status.spent % POMODORO_DURATION} 分経過_
+    **ポモドーロの状態: **_${this.status.startAt ? this.status.rest ? '休憩中:island:' : '作業中:fire:' : '停止中:sleeping:'}_
     `.replace(/\n\s*/g, '\n');
     channel.send(text);
   }
@@ -159,7 +151,7 @@ export class PomodoroService {
 
   /** ポモドーロの作業時間開始を行う関数。 */
   private async doWork() {
-    this.status.count++;
+    this.status.wave++;
     this.status.spent = 0;
     this.status.rest  = false;
     await this.setMute(false);
