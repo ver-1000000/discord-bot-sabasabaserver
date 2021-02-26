@@ -2,10 +2,10 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { Client, ClientUser, TextChannel } from 'discord.js';
 
 import { DISCORD_LOGIN_TOKEN, DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_PRESENCE_NAME } from 'src/environment';
-import { MemosStore } from 'src/stores/memos.store';
+import { MemoStore } from 'src/stores/memo.store';
 
 import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
-import { MemosService } from 'src/services/memos.service';
+import { MemoService } from 'src/services/memo.service';
 import { PomodoroService } from 'src/services/pomodoro.service';
 import { InteractiveService } from 'src/services/interactive.service';
 
@@ -66,10 +66,10 @@ class App {
 
 /** 依存を解決しつつアプリケーションを起動する。 */
 (() => {
-  const client     = new Client();
-  const memosStore = new MemosStore();
+  const client    = new Client();
+  const memoStore = new MemoStore();
   new NotifyVoiceChannelService(client).run();
-  new MemosService(client, memosStore).run();
+  new MemoService(client, memoStore).run();
   new PomodoroService(client).run();
   new InteractiveService(client).run();
   new App(client).run();

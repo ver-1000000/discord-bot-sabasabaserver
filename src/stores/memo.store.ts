@@ -2,7 +2,7 @@ import Store from 'data-store';
 
 import { PrettyText } from 'src/lib/pretty-text';
 
-/** `MemosStore`にアクセスした結果を使いやすくするためにラップする型。 */
+/** `MemoStore`にアクセスした結果を使いやすくするためにラップする型。 */
 interface StoreResult<T = string | Record<string, string>> {
   /** ストアにアクセスした結果をユーザーフレンドリーな文字列として整形した値。 */
   pretty: string;
@@ -13,8 +13,8 @@ interface StoreResult<T = string | Record<string, string>> {
 }
 
 /** memoの情報をjsonに永続化して保存するためのストア用クラス。 */
-export class MemosStore {
-  private store = new Store({ path: `${process.cwd()}/.data/memos.json` });
+export class MemoStore {
+  private store = new Store({ path: `${process.cwd()}/.data/memo.json` });
 
   constructor() {}
 

@@ -2,7 +2,7 @@ import { Client, Message } from 'discord.js';
 
 import { PrettyText } from 'src/lib/pretty-text';
 import { DISCORD_PRESENCE_NAME } from 'src/environment';
-import { MemosStore } from 'src/stores/memos.store';
+import { MemoStore } from 'src/stores/memo.store';
 
 /** メッセージ(`content`)からコマンドに該当する文字列を除外する。 */
 const trimCommandsForConent = (content: string) => content.replace(/!memo\.?\w*\s*\n*/, '').trim();
@@ -19,9 +19,9 @@ const HELP = {
   ]
 } as const;
 
-/** `MemosStore`の値を操作するサービスクラス。 */
-export class MemosService {
-  constructor(private client: Client, private memosStore: MemosStore) {}
+/** `MemoStore`の値を操作するサービスクラス。 */
+export class MemoService {
+  constructor(private client: Client, private memoStore: MemoStore) {}
 
   /** Clientからのイベント監視を開始する。 */
   run() {
@@ -43,7 +43,7 @@ export class MemosService {
   /** keyにマッチする値を取得する。 */
   private get({ author, channel, content }: Message) {
     const key = trimCommandsForConent(content);
-    channel.send(`${author} ${this.memosStore.get(key).pretty}`);
+    channel.send(`${author} ${this.memoStore.get(key).pretty}`);
   }
 
   /**
@@ -54,18 +54,18 @@ export class MemosService {
     const body  = trimCommandsForConent(content);
     const key   = body.replace(/\s.*/g, '');
     const value = body.replace(key, '').trim();
-    channel.send(`${author} ${this.memosStore.set(key, value).pretty}`);
+    channel.send(`${author} ${this.memoStore.set(key, value).pretty}`);
   }
 
   /** bodyにマッチする値を削除する。 */
   private remove({ author, channel, content }: Message) {
     const body  = trimCommandsForConent(content);
-    channel.send(`${author} ${this.memosStore.del(body).pretty}`);
+    channel.send(`${author} ${this.memoStore.del(body).pretty}`);
   }
 
   /** memoの値を一覧する。 */
   private list({ channel }: Message) {
-    channel.send(this.memosStore.data().pretty);
+    channel.send(this.memoStore.data().pretty);
   }
 
   /** ヘルプを表示する。 */
