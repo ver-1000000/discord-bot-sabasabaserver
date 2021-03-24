@@ -1,7 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { Client, ClientUser, TextChannel } from 'discord.js';
 
-import { DISCORD_LOGIN_TOKEN, DISCORD_NOTIFY_TEXT_CHANNEL_ID, DISCORD_PRESENCE_NAME } from 'src/environment';
+import { DISCORD_LOGIN_TOKEN, DISCORD_NOTIFY_TEXT_CHANNEL_ID } from 'src/environment';
 import { MemoStore } from 'src/stores/memo.store';
 
 import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.service';
@@ -49,7 +49,6 @@ class App {
   private initializeBotStatus(user: ClientUser | null) {
     console.log('ready...');
     user?.setPresence({ activity: { name: 'みんなの発言', type: 'WATCHING' } });
-    this.send(`${DISCORD_PRESENCE_NAME} is ranning :runner:`);
   }
 
   /** Discord.jsからエラーイベントを受け取った時、Discordに通知する。 */
