@@ -8,6 +8,7 @@ import { NotifyVoiceChannelService } from 'src/services/notify-voice-channel.ser
 import { MemoService } from 'src/services/memo.service';
 import { PomodoroService } from 'src/services/pomodoro.service';
 import { InteractiveService } from 'src/services/interactive.service';
+import { WikipediaService } from 'src/services/wikipedia.service';
 
 /** 起点となるメインのアプリケーションクラス。 */
 class App {
@@ -65,11 +66,12 @@ class App {
 
 /** 依存を解決しつつアプリケーションを起動する。 */
 (() => {
-  const client         = new Client();
-  const memoStore      = new MemoStore();
+  const client    = new Client();
+  const memoStore = new MemoStore();
   new NotifyVoiceChannelService(client).run();
   new MemoService(client, memoStore).run();
   new PomodoroService(client).run();
   new InteractiveService(client).run();
+  new WikipediaService(client).run();
   new App(client).run();
 })();
