@@ -13,6 +13,7 @@ export class InteractiveService {
   /** Messageから各処理を呼び出すFacade関数。 */
   private onMessage(message: Message) {
     if (message.author.bot) { return; } // botの発言は無視
+    if (['@everyone', '@here'].some(key => message.content.includes(key))) { return; } // everyone/hereが含まれていたら無視
     if (message.mentions.has(this.client.user || '')) { this.reply(message); };
   }
 
